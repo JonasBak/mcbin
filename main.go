@@ -30,7 +30,8 @@ func applyMiddleware(handler http.Handler) http.Handler {
 func pasteHandler(mc *minio.Client) http.Handler {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := uuid.New().String()
-		n, err := mc.PutObject(os.Getenv("MINIO_BUCKET"), key, r.Body, -1, minio.PutObjectOptions{})
+		data := io.LimitedReader{R: r.Body, N: 10000000}
+		n, err := mc.PutObject(os.Getenv("MINIO_BUCKET"), key, &data, -1, minio.PutObjectOptions{})
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			log.Error(err)
