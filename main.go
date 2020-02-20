@@ -14,8 +14,7 @@ import (
 )
 
 func getMinioClient() *minio.Client {
-	// TODO read tls from config
-	mc, err := minio.New(os.Getenv("MINIO_HOST"), os.Getenv("MINIO_ACCESS"), os.Getenv("MINIO_SECRET"), false)
+	mc, err := minio.New(os.Getenv("MINIO_HOST"), os.Getenv("MINIO_ACCESS"), os.Getenv("MINIO_SECRET"), os.Getenv("MINIO_INSECURE") != "true")
 	if err != nil {
 		log.WithFields(log.Fields{"error": err.Error()}).Fatal("Failed to connect to minio")
 	}
