@@ -1,0 +1,22 @@
+version: "3.7"
+
+services:
+  minio:
+    image: minio/minio
+    command: minio server /data
+    environment:
+      MINIO_ACCESS_KEY: admin
+      MINIO_SECRET_KEY: 1234567890abc
+    ports:
+      - 9000:9000
+  mc:
+    image: minio/mc
+    entrypoint: /mc-init.sh
+    environment:
+      MINIO_ACCESS_KEY: admin
+      MINIO_SECRET_KEY: 1234567890abc
+    volumes:
+      - "./mc-init.sh:/mc-init.sh"
+      - "./read-create.json:/read-create.json"
+    depends_on:
+      - minio
