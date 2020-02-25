@@ -8,9 +8,10 @@ import (
 	"github.com/minio/minio-go/v6"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
-	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"time"
 )
 
 func getMinioClient() *minio.Client {
@@ -30,34 +31,34 @@ func applyMiddleware(handler http.Handler) http.Handler {
 func pasteHandler(mc *minio.Client) http.Handler {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := uuid.New().String()
-		data := http.MaxBytesReader(w, r.Body, 10000000)
-		n, err := mc.PutObject(os.Getenv("MINIO_BUCKET"), key, data, -1, minio.PutObjectOptions{})
+		ttl := 10 * time.Minute
+
+		presignedUrl, err := mc.PresignedPutObject(os.Getenv("MINIO_BUCKET"), key, ttl)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			log.Error(err)
 			return
 		}
-		log.Debug(n)
-		fmt.Fprintf(w, "%s/%s", r.Host, key)
+		returnUrl := fmt.Sprintf("%s/%s", r.Host, key)
+		h := w.Header()
+		h.Set("Location", presignedUrl.String())
+		h.Set("X-GET-URL", returnUrl)
+		w.WriteHeader(http.StatusTemporaryRedirect)
+		fmt.Fprintf(w, returnUrl)
 	})
 	return applyMiddleware(handler)
 }
 
 func getHandler(mc *minio.Client) http.Handler {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		object, err := mc.GetObject(os.Getenv("MINIO_BUCKET"), r.URL.Path, minio.GetObjectOptions{})
+		ttl := 10 * time.Minute
+		reqParams := make(url.Values)
+		presignedUrl, err := mc.PresignedGetObject(os.Getenv("MINIO_BUCKET"), r.URL.Path, ttl, reqParams)
 		if err != nil {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		w.Header().Set("Content-Type", "text/plain")
-		n, err := io.Copy(w, object)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			log.Error(err)
-			return
-		}
-		log.Debug(n)
+		http.Redirect(w, r, presignedUrl.String(), http.StatusSeeOther)
 	})
 	return applyMiddleware(handler)
 }
@@ -67,7 +68,7 @@ func serve() {
 
 	r := mux.NewRouter()
 
-	r.Methods("POST").Handler(pasteHandler(mc))
+	r.Methods("PUT").Handler(pasteHandler(mc))
 	r.Methods("GET").Handler(getHandler(mc))
 
 	http.ListenAndServe(":3000", r)
