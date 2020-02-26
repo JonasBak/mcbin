@@ -1,0 +1,3 @@
+#!/bin/bash
+
+curl -i -L -s -X PUT --data-binary "@$1" "$MCBIN_URL" | awk 'tolower($0) ~ /x-get-url/{print $2}'
