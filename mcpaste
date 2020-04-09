@@ -1,3 +1,16 @@
 #!/bin/bash
 
-curl -i -L -s -X PUT --data-binary "@$1" "$MCBIN_URL" | awk 'tolower($0) ~ /x-get-url/{print $2}'
+if [[ $1 == "-s" ]]; then
+  PRINT_SIGNED=1
+  shift
+fi
+
+RESP="$(curl -i -L -s -X PUT --data-binary @$1 $MCBIN_URL)"
+
+if [[ $PRINT_SIGNED ]]; then
+ echo "$RESP" | awk '
+   tolower($0) ~ /x-get-url/{printf "URL: "; print $2}
+   tolower($0) ~ /x-signed/{printf "Signed: "; print $2}'
+else
+ echo "$RESP" | awk 'tolower($0) ~ /x-get-url/{print $2}'
+fi
